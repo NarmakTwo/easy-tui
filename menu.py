@@ -1,21 +1,19 @@
 import curses
 
-def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, operators={}):
+def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, operators={}, display=None):
     """
     Basic menu for selecting options and executing functions using curses.
-    
     :param title: Title of the menu
-    :param classes: List of options to select from
+    :param classes: List of options to select from (can be objects or dicts)
     :param color: Color of the selector
     :param selector: List of characters to use as the selector (default is ['-', '→'])
     :param toggle: Whether to allow toggling of options
     :param operators: Dictionary of functions to execute on selection (key: name, value: function)
-
+    :param display: Key string to access the display value if classes contains dictionaries
     in the operators dict, returning a dictionary with the following keys will do the following:
         add: List of classes to add to the list of options
         remove: List of classes to remove from the list of options
         finish: Ends the menu and returns the selected options
-
     Press [tab] to switch between options and functions.
     """
     def character(stdscr):
@@ -36,8 +34,10 @@ def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, oper
             stdscr.addstr("--- OPTIONS ---\n", normal)
             for i, cls in enumerate(classes):
                 is_curr = (active_group == "options" and cursor_pos == i)
-                pref, mark = (selector[1] if is_curr else selector[0]), ("[x]" if cls in selected_items else "[ ]")
-                stdscr.addstr(f"{pref} {mark} {cls}\n", highlighted if is_curr else normal)
+                pref = selector[1] if is_curr else selector[0]
+                mark = "[x]" if id(cls) in selected_items else "[ ]"
+                label = cls[display] if (display is not None and isinstance(cls, dict)) else str(cls)
+                stdscr.addstr(f"{pref} {mark} {label}\n", highlighted if is_curr else normal)
             stdscr.addstr("\n--- FUNCTIONS ---\n", normal)
             for i, op_name in enumerate(op_keys):
                 is_curr = (active_group == "operators" and cursor_pos == i)
@@ -47,17 +47,20 @@ def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, oper
             if c == 9:
                 active_group = "operators" if active_group == "options" else "options"
                 cursor_pos = 0
-            elif c == curses.KEY_UP: cursor_pos = max(0, cursor_pos - 1)
+            elif c == curses.KEY_UP:
+                cursor_pos = max(0, cursor_pos - 1)
             elif c == curses.KEY_DOWN:
                 limit = (len(classes) - 1) if active_group == "options" else (len(op_keys) - 1)
                 cursor_pos = min(max(0, limit), cursor_pos + 1)
             elif c in (10, 13):
-                res = [cls for cls in classes if cls in selected_items]
+                res = [cls for cls in classes if id(cls) in selected_items]
                 if active_group == "options":
+                    target = classes[cursor_pos]
                     if toggle:
-                        if classes[cursor_pos] in selected_items: selected_items.remove(classes[cursor_pos])
-                        else: selected_items.add(classes[cursor_pos])
-                    else: return [classes[cursor_pos]]
+                        if id(target) in selected_items: selected_items.remove(id(target))
+                        else: selected_items.add(id(target))
+                    else:
+                        return [target]
                 else:
                     op_name = op_keys[cursor_pos]
                     if op_name.lower() == "finish": return res
