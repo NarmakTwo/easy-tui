@@ -1,6 +1,4 @@
-import curses
-
-def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, operators={}, display=None):
+def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, operators={}, display=None, default=False):
     """
     Basic menu for selecting options and executing functions using curses.
     :param title: Title of the menu
@@ -10,6 +8,8 @@ def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, oper
     :param toggle: Whether to allow toggling of options
     :param operators: Dictionary of functions to execute on selection (key: name, value: function)
     :param display: Key string to access the display value if classes contains dictionaries
+    :param default: Whether to default all toggles to on if toggle is True
+    :return List of selected options
     in the operators dict, returning a dictionary with the following keys will do the following:
         add: List of classes to add to the list of options
         remove: List of classes to remove from the list of options
@@ -26,23 +26,51 @@ def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, oper
         if "Finish" not in ops: ops["Finish"] = lambda x: {}
         op_keys = list(ops.keys())
         selected_items = set()
+        if toggle and default:
+            selected_items = set(id(cls) for cls in classes)
         cursor_pos, active_group = 0, "options"
         curses.curs_set(0)
         while True:
             stdscr.erase()
-            stdscr.addstr(f"{title}\n\n", normal)
-            stdscr.addstr("--- OPTIONS ---\n", normal)
+            max_y, max_x = stdscr.getmaxyx()
+            y_pos = 0
+            try:
+                stdscr.addstr(f"{title}\n\n", normal)
+            except:
+                pass
+            y_pos = 3
+            try:
+                stdscr.addstr("--- OPTIONS ---\n", normal)
+            except:
+                pass
+            y_pos += 1
             for i, cls in enumerate(classes):
+                if y_pos >= max_y - 6:
+                    break
                 is_curr = (active_group == "options" and cursor_pos == i)
                 pref = selector[1] if is_curr else selector[0]
                 mark = "[x]" if id(cls) in selected_items else "[ ]"
                 label = cls[display] if (display is not None and isinstance(cls, dict)) else str(cls)
-                stdscr.addstr(f"{pref} {mark} {label}\n", highlighted if is_curr else normal)
-            stdscr.addstr("\n--- FUNCTIONS ---\n", normal)
+                label = label[:max_x - 10].encode('ascii', 'replace').decode('ascii')
+                try:
+                    stdscr.addstr(f"{pref} {mark} {label}\n", highlighted if is_curr else normal)
+                except:
+                    pass
+                y_pos += 1
+            try:
+                stdscr.addstr("\n--- FUNCTIONS ---\n", normal)
+            except:
+                pass
             for i, op_name in enumerate(op_keys):
-                is_curr = (active_group == "operators" and cursor_pos == i)
-                pref = selector[1] if is_curr else selector[0]
-                stdscr.addstr(f"{pref} {op_name}\n", highlighted if is_curr else normal)
+                if y_pos >= max_y - 1:
+                    break
+                is_cur = (active_group == "operators" and cursor_pos == i)
+                pref = selector[1] if is_cur else selector[0]
+                try:
+                    stdscr.addstr(f"{pref} {op_name}\n", highlighted if is_cur else normal)
+                except:
+                    pass
+                y_pos += 1
             c = stdscr.getch()
             if c == 9:
                 active_group = "operators" if active_group == "options" else "options"
@@ -66,12 +94,12 @@ def menu(title, classes, color='blue', selector=['-', '→'], toggle=False, oper
                     if op_name.lower() == "finish": return res
                     curses.endwin()
                     opReturn = ops[op_name](res)
-                    stdscr.refresh()
-                    curses.curs_set(0)
                     if isinstance(opReturn, dict):
                         if "add" in opReturn: classes.extend(opReturn["add"])
                         if "remove" in opReturn:
                             for r_item in opReturn["remove"]:
                                 if r_item in classes: classes.remove(r_item)
-                        if opReturn.get("finish"): return res
+                    cursor_pos = 0
+                    curses.curs_set(0)
+                    stdscr.refresh()
     return curses.wrapper(character)
